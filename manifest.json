@@ -1,14 +1,14 @@
 {
   "name": "AR Trace",
   "short_name": "AR Trace",
-  "start_url": "/Art-Tracer/",
-  "scope": "/Art-Tracer/",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#121215",
   "theme_color": "#121215",
   "icons": [
     {
-      "src": "/Art-Tracer/icon.png",
+      "src": "icon.png",
       "sizes": "512x512",
       "type": "image/png"
     }
