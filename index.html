@@ -3,6 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#121215">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="icon" type="image/png" sizes="512x512" href="icon.png">
+<link rel="apple-touch-icon" sizes="512x512" href="icon.png">
+<link rel="manifest" href="manifest.json">
 <title>AR Trace</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;user-select:none;-webkit-user-select:none}
@@ -62,7 +68,7 @@ async function initCam(){
     const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}},audio:false});
     cam.srcObject=stream;
     track=stream.getVideoTracks()[0];
-  }catch(e){console.warn('Kamerastart misslyckades, försök igen',e)}
+  }catch(e){console.warn('Kamerastart misslyckades',e)}
 }
 initCam();
 
@@ -106,11 +112,23 @@ $('unhide').onclick=()=>{$('dock').classList.remove('hidden');$('unhide').style.
 
 $('torch').onclick=async()=>{
   if(!track)return;
-  const caps=track.getCapabilities?track.getCapabilities():{};
-  if(!caps.torch)return alert('Ficklampa stöds ej i denna webbläsare.');
-  torchOn=!torchOn;
-  await track.applyConstraints({advanced:[{torch:torchOn}]});
-  $('torch').classList.toggle('on',torchOn);
+  try{
+    torchOn=!torchOn;
+    await track.applyConstraints({advanced:[{torch:torchOn}]});
+    $('torch').classList.toggle('on',torchOn);
+  }catch(e){
+    try{
+      const imageCapture=new ImageCapture(track);
+      const caps=await imageCapture.photoCapabilities();
+      if(caps.fillLightMode&&caps.fillLightMode.includes('torch')){
+        await imageCapture.setOptions({fillLightMode:torchOn?'torch':'off'});
+        $('torch').classList.toggle('on',torchOn);
+        return;
+      }
+    }catch(err){}
+    torchOn=!torchOn;
+    alert('Ficklampa stöds ej i denna enhet/miljö.');
+  }
 };
 
 const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
