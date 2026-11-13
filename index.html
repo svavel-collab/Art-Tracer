@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>AR Trace</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;user-select:none;-webkit-user-select:none}
+html,body{background:#121215;color:#fff;font-family:system-ui,sans-serif;overflow:hidden;height:100%;width:100%}
+#cam{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;z-index:0}
+#stage{position:fixed;inset:0;width:100%;height:100%;touch-action:none;overflow:hidden;display:flex;align-items:center;justify-content:center;z-index:1}
+#img{max-width:85vw;max-height:75vh;opacity:.5;transform-origin:center;pointer-events:none;will-change:transform}
+.dock{position:fixed;left:12px;right:12px;bottom:14px;display:flex;flex-direction:column;gap:10px;z-index:10;transition:opacity .2s}
+.top-ctrl{display:flex;align-items:center;justify-content:space-between;padding:0 4px}
+.pill-btn{width:40px;height:40px;border-radius:12px;background:rgba(24,24,27,.75);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.15);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.pill-btn.on{background:#8b5cf6;border-color:#a78bfa}
+.slider-box{background:rgba(24,24,27,.85);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.15);border-radius:14px;padding:10px 14px;display:none;align-items:center;gap:10px}
+.slider-box.show{display:flex}
+input[type=range]{flex:1;accent-color:#8b5cf6;height:5px;background:#3f3f46;border-radius:4px}
+input[type=file]{display:none}
+.bar{display:flex;align-items:center;justify-content:space-around;padding:10px 6px;background:rgba(24,24,27,.82);backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.12);border-radius:18px}
+.item{background:none;border:none;color:#e4e4e7;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;font-weight:500;cursor:pointer;min-width:52px}
+.item svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.item.on{color:#a78bfa}
+.hidden{opacity:0;pointer-events:none}
+#unhide{position:fixed;bottom:20px;right:16px;z-index:20;display:none}
+</style>
+</head>
+<body>
+<video id="cam" autoplay playsinline muted></video>
+<div id="stage"><img id="img" alt=""></div>
+<button class="pill-btn" id="unhide"><svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" fill="none" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+
+<div class="dock" id="dock">
+  <div class="slider-box" id="opBox">
+    <span style="font-size:12px;min-width:34px" id="opVal">50%</span>
+    <input type="range" id="op" min="5" max="100" value="50">
+  </div>
+  <div class="top-ctrl">
+    <button class="pill-btn" id="lock"><svg id="lockIco" viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" fill="none" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg></button>
+    <label class="pill-btn"><svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" fill="none" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg><input type="file" id="file" accept="image/*"></label>
+  </div>
+  <div class="bar">
+    <button class="item" id="opBtn"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"/></svg><span>Opacity</span></button>
+    <button class="item" id="flip"><svg viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v14c0 1.1.9 2 2 2h3"/><path d="M16 3h3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-3"/><line x1="12" y1="20" x2="12" y2="4"/></svg><span>Flip</span></button>
+    <button class="item" id="torch"><svg viewBox="0 0 24 24"><path d="M18 6c0 2-2 2-2 4v10a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2V10c0-2-2-2-2-4V2h12z"/><line x1="6" y1="6" x2="18" y2="6"/></svg><span>Flashlight</span></button>
+    <button class="item" id="hide"><svg viewBox="0 0 24 24"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg><span>Hide</span></button>
+    <button class="item" id="reset"><svg viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg><span>Reset</span></button>
+  </div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id),cam=$('cam'),img=$('img'),stage=$('stage');
+let track=null,torchOn=false,locked=false,flipped=false;
+let st={x:0,y:0,s:1,r:0},pts=new Map(),prevDist=0,prevAng=0,prevMid=null;
+
+async function initCam(){
+  try{
+    if(cam.srcObject){
+      cam.srcObject.getTracks().forEach(t=>t.stop());
+    }
+    const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}},audio:false});
+    cam.srcObject=stream;
+    track=stream.getVideoTracks()[0];
+  }catch(e){console.warn('Kamerastart misslyckades, försök igen',e)}
+}
+initCam();
+
+let lastTime=0;
+setInterval(()=>{
+  if(cam.readyState>=2){
+    if(cam.currentTime===lastTime){
+      initCam();
+    } else {
+      lastTime=cam.currentTime;
+    }
+  }
+}, 2000);
+
+const render=()=>{img.style.transform=`translate(${st.x}px,${st.y}px) scale(${st.s*(flipped?-1:1)},${st.s}) rotate(${st.r}deg)`};
+
+$('file').onchange=e=>{
+  const f=e.target.files[0];if(!f)return;
+  img.src=URL.createObjectURL(f);
+  st={x:0,y:0,s:1,r:0};flipped=false;$('flip').classList.remove('on');render();
+};
+$('opBtn').onclick=()=>{$('opBox').classList.toggle('show');$('opBtn').classList.toggle('on')};
+$('op').oninput=e=>{img.style.opacity=e.target.value/100;$('opVal').textContent=e.target.value+'%'};
+$('lock').onclick=async()=>{
+  locked=!locked;
+  $('lock').classList.toggle('on',locked);
+  $('lockIco').innerHTML=locked?'<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>':'<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>';
+  if(track&&track.getCapabilities){
+    try{
+      const caps=track.getCapabilities(),adv={};
+      if(caps.exposureMode&&caps.exposureMode.includes(locked?'manual':'continuous'))adv.exposureMode=locked?'manual':'continuous';
+      if(caps.whiteBalanceMode&&caps.whiteBalanceMode.includes(locked?'manual':'continuous'))adv.whiteBalanceMode=locked?'manual':'continuous';
+      if(Object.keys(adv).length)await track.applyConstraints({advanced:[adv]});
+    }catch(e){}
+  }
+};
+$('flip').onclick=()=>{flipped=!flipped;$('flip').classList.toggle('on',flipped);render()};
+$('reset').onclick=()=>{if(locked)return;st={x:0,y:0,s:1,r:0};flipped=false;$('flip').classList.remove('on');render()};
+$('hide').onclick=()=>{$('dock').classList.add('hidden');$('unhide').style.display='flex'};
+$('unhide').onclick=()=>{$('dock').classList.remove('hidden');$('unhide').style.display='none'};
+
+$('torch').onclick=async()=>{
+  if(!track)return;
+  const caps=track.getCapabilities?track.getCapabilities():{};
+  if(!caps.torch)return alert('Ficklampa stöds ej i denna webbläsare.');
+  torchOn=!torchOn;
+  await track.applyConstraints({advanced:[{torch:torchOn}]});
+  $('torch').classList.toggle('on',torchOn);
+};
+
+const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+const ang=(a,b)=>Math.atan2(b.y-a.y,b.x-a.x)*180/Math.PI;
+const mid=(a,b)=>({x:(a.x+b.x)/2,y:(a.y+b.y)/2});
+
+stage.onpointerdown=e=>{if(locked)return;stage.setPointerCapture(e.pointerId);pts.set(e.pointerId,{x:e.clientX,y:e.clientY});if(pts.size===2){const[a,b]=[...pts.values()];prevDist=dist(a,b);prevAng=ang(a,b);prevMid=mid(a,b)}};
+stage.onpointermove=e=>{
+  if(locked||!pts.has(e.pointerId))return;
+  const old=pts.get(e.pointerId),cur={x:e.clientX,y:e.clientY};
+  pts.set(e.pointerId,cur);
+  if(pts.size===1){st.x+=cur.x-old.x;st.y+=cur.y-old.y;render()}
+  else if(pts.size===2){
+    const[a,b]=[...pts.values()],d=dist(a,b),an=ang(a,b),m=mid(a,b);
+    st.s=Math.min(8,Math.max(.1,st.s*(d/prevDist)));
+    st.r+=an-prevAng;st.x+=m.x-prevMid.x;st.y+=m.y-prevMid.y;
+    prevDist=d;prevAng=an;prevMid=m;render();
+  }
+};
+stage.onpointerup=stage.onpointercancel=e=>{pts.delete(e.pointerId);if(pts.size<2)prevMid=null};
+</script>
+</body>
+</html>
